@@ -160,7 +160,8 @@ def main_loop():
                     break
 
             df = obter_velas(API, par, qnt_velas, timeframe)  
-            rsi = calcular_rsi(df) 
+            rsi = calcular_rsi(df)
+            print(f"RSI: {rsi}")
             if rsi <80 or rsi >20:
                 fractal_up, fractal_down =calcular_fractal(df)
                 ema =calcular_ema(API, df, timeframe)            
