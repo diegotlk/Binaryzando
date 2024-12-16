@@ -296,7 +296,7 @@ def calculo_entrada(pay):
     entrada = round(max(entrada, 2), 2)
     if entrada >= 100:
         bot.send_message(chat_id,"Stop Loss Atingido")
-        exit(message)
+        finalizar_execucao(message)
 
     return entrada
 
