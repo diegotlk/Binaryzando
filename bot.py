@@ -155,7 +155,7 @@ def main_loop():
                     lista_negra.append(par)
 
                 else:
-                     bot.send_message(chat_id,"Nenhum par foi encontrado.")
+                    bot.send_message(chat_id,"Nenhum par foi encontrado.")
                     lista_negra.clear()
                     break
 
