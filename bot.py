@@ -513,8 +513,8 @@ def start_command(message):
 def finalizar_execucao(message):
     global executando
     executando = False
-    responder_fake()
-    # os._exit(0)
+    # responder_fake()
+    os._exit(0)
 
 def criar_markup():
     markup = types.InlineKeyboardMarkup()
