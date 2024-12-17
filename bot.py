@@ -36,6 +36,7 @@ max_win=0
 max_loss=0
 dpontos=0
 gpontos=0
+vit=0
 exp = 1
 timeframe = 60
 qnt_velas = 30
@@ -134,7 +135,7 @@ def maior_payout():
     return table_data[0] if table_data else None
 
 def main_loop():
-    global executando, lista_negra, par, dpontos, gpontos, pay, tipo
+    global executando, lista_negra, par, dpontos, gpontos, pay, tipo, vit
     executando = True
 
     while executando:
@@ -143,7 +144,7 @@ def main_loop():
             if not API.check_connect():
                 tentar_reconectar()
 
-            if win ==0:
+            if vit == 0:
                 resul = maior_payout()
 
                 if resul:
@@ -229,6 +230,7 @@ def main_loop():
                     direcao = None
             else:
                 direcao = None
+                vit=0
                 break                
 
             if direcao:
@@ -304,7 +306,7 @@ def calculo_entrada(pay):
 
 def compra(par, direcao, exp, tipo, entrada):
     global executando, lucro_total, resultado, vitorias, derrotas,lista_negra
-    global win, loss, max_win, max_loss, sequencias_loss, sequencias_win
+    global win, loss, max_win, max_loss, sequencias_loss, sequencias_win,vit
 
     try:
         horario_entrada = datetime.now().strftime("%H:%M:%S")
@@ -336,6 +338,7 @@ def compra(par, direcao, exp, tipo, entrada):
                         vitorias += 1
                         win += 1
                         loss = 0 
+                        vit += 1
                         max_win = max(max_win, win)
                         if win == 1: 
                             sequencias_win.append(1)
@@ -362,6 +365,7 @@ def compra(par, direcao, exp, tipo, entrada):
                         derrotas += 1
                         loss += 1
                         win = 0  
+                        vit =0
                         max_loss = max(max_loss, loss)
                         armazenar_prejuizo()
                         if loss == 1:  
