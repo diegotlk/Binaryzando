@@ -157,6 +157,7 @@ def main_loop():
                 else:
                     bot.send_message(chat_id,"Nenhum par foi encontrado.")
                     lista_negra.clear()
+                    resul = maior_payout()
                     break
 
             df = obter_velas(API, par, qnt_velas, timeframe)  
@@ -296,7 +297,7 @@ def calculo_entrada(pay):
     entrada = round(max(entrada, 2), 2)
     if entrada >= 100:
         bot.send_message(chat_id,"Stop Loss Atingido")
-        finalizar_execucao(message)
+        exit(message)
 
     return entrada
 
@@ -408,7 +409,7 @@ def armazenar_prejuizo():
         
 def estatistica():
     global executando, vitorias, derrotas, resultado, lucro_total
-    global lucro_acumulado, inicio_execucao, executando, conta_selecionada
+    global lucro_acumulado, inicio_execucao, conta_selecionada, lista_negra
 
     tempo_execucao = time.time() - inicio_execucao
     horas = int(tempo_execucao // 3600)
@@ -442,6 +443,7 @@ def estatistica():
     
     lucro_total=0
     resultado=0
+    lista_negra.clear()
     if conta_selecionada == 'REAL':
         executando = False
         responder_fake()
@@ -486,11 +488,19 @@ def selecionar_conta(call):
     bot.answer_callback_query(call.id)
 
     conta_selecionada = 'PRACTICE' if call.data == '1' else 'REAL'
-    API.change_balance(conta_selecionada)
+    if not change_balance(conta_selecionada):
+        bot.send_message(call.message.chat.id, "❌ Não foi possível alterar a conta. Tente novamente.")
+    else:
+        saldo = float(API.get_balance())
+        bot.send_message(call.message.chat.id, f"💰 Saldo atualizado: R$ {saldo}")
+
     bot.send_message(
         call.message.chat.id, 
         f"------------------------\n✅  Conta {'Demo' if call.data == '1' else 'Real'} Selecionada!"
     )
+    
+    if not API.check_connect():
+        API.reconnect() 
 
     saldo = float(API.get_balance())
     bot.send_message(call.message.chat.id, f"💰  Saldo: R$ {saldo}")
