@@ -281,12 +281,12 @@ def entradas(par,direcao,tipo,pay):
             return
 
 def calculo_entrada(pay):
-    global lucro_total, resultado
+    global lucro_total, resultado,loss
     pay2 = pay / 100
     saldo = float(API.get_balance())
     sdo = 2
 
-    if lucro_total < -2:
+    if loss >= 2:
         if resultado < 0:
             entrada = (abs(lucro_total) - sdo) / pay2
         elif resultado > 0:
@@ -295,9 +295,10 @@ def calculo_entrada(pay):
         entrada = abs(lucro_total) * 2
 
     entrada = round(max(entrada, 2), 2)
-    if entrada >= 100:
+
+    if loss == 6:
         bot.send_message(chat_id,"Stop Loss Atingido")
-        exit(message)
+        responder_fake()
 
     return entrada
 
@@ -488,19 +489,11 @@ def selecionar_conta(call):
     bot.answer_callback_query(call.id)
 
     conta_selecionada = 'PRACTICE' if call.data == '1' else 'REAL'
-    if not change_balance(conta_selecionada):
-        bot.send_message(call.message.chat.id, "❌ Não foi possível alterar a conta. Tente novamente.")
-    else:
-        saldo = float(API.get_balance())
-        bot.send_message(call.message.chat.id, f"💰 Saldo atualizado: R$ {saldo}")
-
+    API.change_balance(conta_selecionada)
     bot.send_message(
         call.message.chat.id, 
         f"------------------------\n✅  Conta {'Demo' if call.data == '1' else 'Real'} Selecionada!"
     )
-    
-    if not API.check_connect():
-        API.reconnect() 
 
     saldo = float(API.get_balance())
     bot.send_message(call.message.chat.id, f"💰  Saldo: R$ {saldo}")
@@ -516,7 +509,8 @@ def start_command(message):
 def finalizar_execucao(message):
     global executando
     executando = False
-    os._exit(0)
+    responder_fake()
+    # os._exit(0)
 
 def criar_markup():
     markup = types.InlineKeyboardMarkup()
