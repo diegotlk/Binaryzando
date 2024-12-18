@@ -36,6 +36,7 @@ max_win=0
 max_loss=0
 dpontos=0
 gpontos=0
+vit=0
 exp = 1
 timeframe = 60
 qnt_velas = 30
@@ -134,7 +135,7 @@ def maior_payout():
     return table_data[0] if table_data else None
 
 def main_loop():
-    global executando, lista_negra, par, dpontos, gpontos, pay, tipo
+    global executando, lista_negra, par, dpontos, gpontos, pay, tipo, vit
     executando = True
 
     while executando:
@@ -143,21 +144,12 @@ def main_loop():
             if not API.check_connect():
                 tentar_reconectar()
 
-            if win ==0:
+            if vit == 0:
                 resul = maior_payout()
-
-                if resul:
-                    par = resul[0] 
-                    pay = resul[1] 
-                    tipo = resul[2] 
-                    op_digital = resul[3] 
-                    op_turbo = resul[4] 
-                    lista_negra.append(par)
-
-                else:
-                    bot.send_message(chat_id,"Nenhum par foi encontrado.")
-                    lista_negra.clear()
-                    break
+                par = resul[0] 
+                pay = resul[1] 
+                tipo = resul[2] 
+                lista_negra.append(par)
 
             df = obter_velas(API, par, qnt_velas, timeframe)  
             rsi = calcular_rsi(df)
@@ -167,7 +159,7 @@ def main_loop():
                 ema =calcular_ema(API, df, timeframe)            
                 preco = df['close'].iloc[-1] 
                                 
-                if rsi < 80 and preco>ema and not fractal_up:    
+                if rsi < 80 and preco>ema and not fractal_up:
                     gsinal="put"
                     dsinal="call"
 
@@ -227,11 +219,9 @@ def main_loop():
                                           
                 else:
                     direcao = None
-                    break 
 
             else:
                 direcao = None
-                break                
 
             if direcao:
                 entrar =entradas(par,direcao,tipo,pay)
@@ -307,7 +297,7 @@ def calculo_entrada(pay):
 
 def compra(par, direcao, exp, tipo, entrada):
     global executando, lucro_total, resultado, vitorias, derrotas,lista_negra
-    global win, loss, max_win, max_loss, sequencias_loss, sequencias_win
+    global win, loss, max_win, max_loss, sequencias_loss, sequencias_win,vit
 
     try:
         horario_entrada = datetime.now().strftime("%H:%M:%S")
@@ -365,6 +355,7 @@ def compra(par, direcao, exp, tipo, entrada):
                         derrotas += 1
                         loss += 1
                         win = 0  
+                        vit = 0
                         max_loss = max(max_loss, loss)
                         armazenar_prejuizo()
                         if loss == 1:  
@@ -488,14 +479,15 @@ def selecionar_conta(call):
         return
 
     processados.add(call.message.message_id)
-    bot.answer_callback_query(call.id)
+    try:
+        bot.answer_callback_query(call.id)
+    except Exception as e:
+        print(f"Erro callback: {e}")
+        return
 
     conta_selecionada = 'PRACTICE' if call.data == '1' else 'REAL'
-    if not change_balance(conta_selecionada):
-        bot.send_message(call.message.chat.id, "❌ Não foi possível alterar a conta. Tente novamente.")
-    else:
-        saldo = float(API.get_balance())
-        bot.send_message(call.message.chat.id, f"💰 Saldo atualizado: R$ {saldo}")
+    change_balance(conta_selecionada)
+    saldo = float(API.get_balance())
 
     bot.send_message(
         call.message.chat.id, 
@@ -510,6 +502,11 @@ def selecionar_conta(call):
 
     executando = False
     main_loop()
+
+def change_balance(account_type):
+    if account_type not in ['PRACTICE', 'REAL']:
+        raise ValueError("Tipo de conta inválido. Use 'PRACTICE' ou 'REAL'.")
+    API.change_balance(account_type)
 
 def start_command(message):
     global chat_id
@@ -531,6 +528,11 @@ def criar_markup():
     return markup
 
 def handle_button_click(call):
+
+    if call.message.message_id in processados:
+        bot.answer_callback_query(call.id, "Já processado.")
+        return
+
     if call.data == 'start':
         start_command(call.message)
     elif call.data == 'continue':
@@ -544,6 +546,7 @@ def handle_button_click(call):
         bot.answer_callback_query(call.id)
     except Exception as e:
         print(f"Erro callback: {e}")
+        return
 
 @bot.callback_query_handler(func=lambda call: call.data in ['1', '2'])
 def callback_selecionar_conta(call):
