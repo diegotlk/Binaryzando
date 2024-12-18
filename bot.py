@@ -143,23 +143,21 @@ def main_loop():
         try:
             if not API.check_connect():
                 tentar_reconectar()
-
+                
             if vit == 0:
                 resul = maior_payout()
+                par = resul[0] 
+                pay = resul[1] 
+                tipo = resul[2] 
+                op_digital = resul[3] 
+                op_turbo = resul[4] 
+                lista_negra.append(par)
 
-                if resul:
-                    par = resul[0] 
-                    pay = resul[1] 
-                    tipo = resul[2] 
-                    op_digital = resul[3] 
-                    op_turbo = resul[4] 
-                    lista_negra.append(par)
-
-                else:
-                    bot.send_message(chat_id,"Nenhum par foi encontrado.")
-                    lista_negra.clear()
-                    resul = maior_payout()
-                    break
+            else:
+                bot.send_message(chat_id,"Nenhum par foi encontrado.")
+                lista_negra.clear()
+                resul = maior_payout()
+                break
 
             df = obter_velas(API, par, qnt_velas, timeframe)  
             rsi = calcular_rsi(df)
