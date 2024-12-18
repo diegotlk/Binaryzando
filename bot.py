@@ -18,11 +18,10 @@ bot = TeleBot(CHAVE_API)
 executando=False
 par=None
 tipo=None
-pay=0
 MAX_LOSS = []
 sequencias_loss = []
 sequencias_win = []
-lista_negra=[] 
+lista_negra = [] 
 processados = set()
 lucro_total=0
 lucro_acumulado=0
@@ -31,6 +30,7 @@ vitorias=0
 derrotas=0
 entrada=0
 win=0
+pay=0
 loss=0
 max_win=0
 max_loss=0
@@ -447,7 +447,7 @@ def responder_fake():
     bot.send_message(chat_id, "Escolha um dos comandos:", reply_markup=criar_markup())
 
 def iniciar_conexao(message):
-    global API, executando, inicio_execucao, lucro_acumulado
+    global API, executando, inicio_execucao, lucro_acumulado, conta_selecionada
 
     config = ConfigObj('log.txt')
     email, senha = config['LOGIN']['email'], config['LOGIN']['senha']
@@ -458,6 +458,8 @@ def iniciar_conexao(message):
 
     if check:
         inicio_execucao = time.time()
+        executando = True
+        conta_selecionada = None  
         solicitar_conta(message)
     else:
         bot.send_message(message.chat.id, f"❌ Houve um problema na conexão: {reason}")
@@ -472,13 +474,9 @@ def solicitar_conta(message):
     bot.send_message(message.chat.id, "Qual conta você gostaria de usar?", reply_markup=markup)
 
 def selecionar_conta(call):
-    global executando, conta_selecionada
-
-    if call.message.message_id in processados:
-        bot.answer_callback_query(call.id, "Já processado.")
-        return
-
-    processados.add(call.message.message_id)
+    global executando, conta_selecionada, lucro_total, lucro_acumulado, resultado
+    global vitorias, derrotas, entrada, win, pay, loss, max_win, max_loss
+    executando = False
     try:
         bot.answer_callback_query(call.id)
     except Exception as e:
@@ -495,13 +493,26 @@ def selecionar_conta(call):
     )
     
     if not API.check_connect():
-        API.reconnect() 
+        API.reconnect()
 
     saldo = float(API.get_balance())
     bot.send_message(call.message.chat.id, f"💰  Saldo: R$ {saldo}")
 
-    executando = False
-    main_loop()
+    lucro_total=0
+    lucro_acumulado=0
+    resultado=0
+    vitorias=0
+    derrotas=0
+    entrada=0
+    win=0
+    pay=0
+    loss=0
+    max_win=0
+    max_loss=0
+
+    executando = True
+    if executando:
+        main_loop()
 
 def change_balance(account_type):
     if account_type not in ['PRACTICE', 'REAL']:
@@ -513,34 +524,51 @@ def start_command(message):
     chat_id = message.chat.id
     iniciar_conexao(message)
 
-def finalizar_execucao(message):
+def pausar(message):
     global executando
     executando = False
+
+    markup = types.InlineKeyboardMarkup()
+    markup.add(
+        types.InlineKeyboardButton("🔄 Mudar Conta", callback_data='mudar_conta'),
+        types.InlineKeyboardButton("🔒 Travar Bot", callback_data='travar')
+    )
+    bot.send_message(message.chat.id, "O bot está pausado. Escolha uma opção:", reply_markup=markup)
+
+def mudar_conta(call):
+    global executando
+    executando = False
+    bot.answer_callback_query(call.id)
+    solicitar_conta(call.message)
+
+def travar(call):
+    global executando
+    executando = False
+    bot.answer_callback_query(call.id)
+    bot.send_message(call.message.chat.id, "🔒 O bot foi travado. Reinicie para usar novamente.")
     os._exit(0)
 
 def criar_markup():
     markup = types.InlineKeyboardMarkup()
     markup.add(
         types.InlineKeyboardButton("▶  Start", callback_data='start'),
-        types.InlineKeyboardButton("🔁  Continue", callback_data='continue'),
-        types.InlineKeyboardButton("⏹  Lock", callback_data='lock')
+        types.InlineKeyboardButton("⏩  Continue", callback_data='continue'),
+        types.InlineKeyboardButton("⏸  Config", callback_data='config')
     )
     return markup
 
 def handle_button_click(call):
-
-    if call.message.message_id in processados:
-        bot.answer_callback_query(call.id, "Já processado.")
-        return
-
     if call.data == 'start':
         start_command(call.message)
     elif call.data == 'continue':
         bot.send_message(call.message.chat.id, "Continuando...")
         main_loop()
-    elif call.data == 'lock':
-        bot.send_message(call.message.chat.id, "O bot foi travado e as variáveis zeradas!\n🔐")
-        finalizar_execucao(call.message)
+    elif call.data == 'config':
+        pausar(call.message)
+    elif call.data == 'mudar_conta':
+        mudar_conta(call)
+    elif call.data == 'travar':
+        travar(call)
 
     try:
         bot.answer_callback_query(call.id)
@@ -548,21 +576,21 @@ def handle_button_click(call):
         print(f"Erro callback: {e}")
         return
 
+@bot.callback_query_handler(func=lambda call: call.data in ['start', 'continue', 'config', 'mudar_conta', 'travar'])
+def callback_handle_button(call):
+    handle_button_click(call)
+
 @bot.callback_query_handler(func=lambda call: call.data in ['1', '2'])
 def callback_selecionar_conta(call):
     selecionar_conta(call)
-
-@bot.callback_query_handler(func=lambda call: call.data in ['start', 'continue', 'lock'])
-def callback_handle_button(call):
-    handle_button_click(call)
 
 @bot.message_handler(commands=["start"])
 def comando_start(message):
     start_command(message)
 
-@bot.message_handler(commands=["lock"])
-def comando_lock(message):
-    finalizar_execucao(message)
+@bot.message_handler(commands=["config"])
+def comando_config(message):
+    pausar(message)
 
 @bot.message_handler(func=lambda message: True)
 def responder(message):
