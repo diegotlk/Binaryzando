@@ -239,23 +239,22 @@ def atualizar_pontuacao(dsinal, gsinal):
 
     vela = API.get_candles(par, timeframe, 1, time.time())[0]
     if vela['open'] > vela['close']:
-        direcao = "put"
+        dir = "put"
     elif vela['open'] < vela['close']:
-        direcao = "call"
+        dir = "call"
     else:
-        direcao = None
+        dir = None
 
-    if direcao:
-        if direcao == dsinal:
-            dpontos += 1
-        else:
-            dpontos -= 1
+    if dir == dsinal:
+        dpontos += 1
+    else:
+        dpontos -= 1
 
-        if direcao == gsinal:
-            gpontos += 1
-        else:
-            gpontos -= 1
-            
+    if dir == gsinal:
+        gpontos += 1
+    else:
+        gpontos -= 1
+        
     if dpontos < 0:
         dpontos = 0
     if gpontos < 0:
