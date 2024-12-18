@@ -36,7 +36,6 @@ max_win=0
 max_loss=0
 dpontos=0
 gpontos=0
-vit=0
 exp = 1
 timeframe = 60
 qnt_velas = 30
@@ -135,7 +134,7 @@ def maior_payout():
     return table_data[0] if table_data else None
 
 def main_loop():
-    global executando, lista_negra, par, dpontos, gpontos, pay, tipo, vit
+    global executando, lista_negra, par, dpontos, gpontos, pay, tipo
     executando = True
 
     while executando:
@@ -143,21 +142,22 @@ def main_loop():
         try:
             if not API.check_connect():
                 tentar_reconectar()
-                
-            if vit == 0:
-                resul = maior_payout()
-                par = resul[0] 
-                pay = resul[1] 
-                tipo = resul[2] 
-                op_digital = resul[3] 
-                op_turbo = resul[4] 
-                lista_negra.append(par)
 
-            else:
-                bot.send_message(chat_id,"Nenhum par foi encontrado.")
-                lista_negra.clear()
+            if win ==0:
                 resul = maior_payout()
-                break
+
+                if resul:
+                    par = resul[0] 
+                    pay = resul[1] 
+                    tipo = resul[2] 
+                    op_digital = resul[3] 
+                    op_turbo = resul[4] 
+                    lista_negra.append(par)
+
+                else:
+                    bot.send_message(chat_id,"Nenhum par foi encontrado.")
+                    lista_negra.clear()
+                    break
 
             df = obter_velas(API, par, qnt_velas, timeframe)  
             rsi = calcular_rsi(df)
@@ -173,62 +173,64 @@ def main_loop():
 
                     if abs(dpontos - gpontos) > 1: 
                         if gpontos<dpontos:
+                            direcao = "call"
                             bot.send_message(chat_id,
                                             '------------------------\n'
                                             f"🔅 Entrada encontrada !!\n"
                                             f"{par} | {pay}%\n"
                                             f"D.{dpontos} x G.{gpontos}\n")                 
-                            direcao = "call"
-
+                            
                         else:
+                            direcao = "put" 
                             bot.send_message(chat_id,
                                             '------------------------\n'
                                             f"🔅 Entrada encontrada !!\n"
                                             f"{par} | {pay}%\n"
                                             f"D.{dpontos} x G.{gpontos}\n")   
-                            direcao = "put"  
-
+                             
                     else:
+                        direcao = "put"
                         bot.send_message(chat_id,
                                         '------------------------\n'
                                         f"🔅 Entrada encontrada !!\n"
                                         f"{par} | {pay}%\n"
                                         f"D.{dpontos} x G.{gpontos}\n")   
-                        direcao = "put"
+                        
                         
                 elif rsi > 20 and preco<ema and not fractal_down:
                     gsinal="call"
                     dsinal="put"  
                     if abs(dpontos - gpontos) > 1: 
                         if gpontos<dpontos:
-                            bot.send_message(chat_id,
-                                            '------------------------\n'
-                                            f"🔅 Entrada encontrada !!\n"
-                                            f"{par} | {pay}%\n"
-                                            f"D.{dpontos} x G.{gpontos}\n")   
                             direcao = "put"
-                            
-                        else:
                             bot.send_message(chat_id,
                                             '------------------------\n'
                                             f"🔅 Entrada encontrada !!\n"
                                             f"{par} | {pay}%\n"
                                             f"D.{dpontos} x G.{gpontos}\n")   
-                            direcao = "call" 
-
+                                                        
+                        else:
+                            direcao = "call"
+                            bot.send_message(chat_id,
+                                            '------------------------\n'
+                                            f"🔅 Entrada encontrada !!\n"
+                                            f"{par} | {pay}%\n"
+                                            f"D.{dpontos} x G.{gpontos}\n")   
+                             
                     else:
+                        direcao = "call" 
                         bot.send_message(chat_id,
                                         '------------------------\n'
                                         f"🔅 Entrada encontrada !!\n"
                                         f"{par} | {pay}%\n"
                                         f"D.{dpontos} x G.{gpontos}\n")   
-                        direcao = "call"                                            
-
+                                          
                 else:
                     direcao = None
+                    break 
+
             else:
                 direcao = None
-                vit=0
                 break                
 
             if direcao:
@@ -281,12 +283,12 @@ def entradas(par,direcao,tipo,pay):
             return
 
 def calculo_entrada(pay):
-    global lucro_total, resultado,loss
+    global lucro_total, resultado
     pay2 = pay / 100
     saldo = float(API.get_balance())
     sdo = 2
 
-    if loss >= 2:
+    if loss > 1:
         if resultado < 0:
             entrada = (abs(lucro_total) - sdo) / pay2
         elif resultado > 0:
@@ -297,14 +299,15 @@ def calculo_entrada(pay):
     entrada = round(max(entrada, 2), 2)
 
     if entrada >= 100:
-        bot.send_message(chat_id,"Stop Loss Atingido")
-        finalizar_execucao(message)
+        bot.send_message(chat_id, '❌')
+        bot.send_message(chat_id,"❌  Stop Loss Atingido")
+        os._exit(0)
 
     return entrada
 
 def compra(par, direcao, exp, tipo, entrada):
     global executando, lucro_total, resultado, vitorias, derrotas,lista_negra
-    global win, loss, max_win, max_loss, sequencias_loss, sequencias_win,vit
+    global win, loss, max_win, max_loss, sequencias_loss, sequencias_win
 
     try:
         horario_entrada = datetime.now().strftime("%H:%M:%S")
@@ -336,7 +339,6 @@ def compra(par, direcao, exp, tipo, entrada):
                         vitorias += 1
                         win += 1
                         loss = 0 
-                        vit += 1
                         max_win = max(max_win, win)
                         if win == 1: 
                             sequencias_win.append(1)
@@ -363,7 +365,6 @@ def compra(par, direcao, exp, tipo, entrada):
                         derrotas += 1
                         loss += 1
                         win = 0  
-                        vit =0
                         max_loss = max(max_loss, loss)
                         armazenar_prejuizo()
                         if loss == 1:  
@@ -412,7 +413,7 @@ def armazenar_prejuizo():
         
 def estatistica():
     global executando, vitorias, derrotas, resultado, lucro_total
-    global lucro_acumulado, inicio_execucao, conta_selecionada, lista_negra
+    global lucro_acumulado, inicio_execucao, executando, conta_selecionada
 
     tempo_execucao = time.time() - inicio_execucao
     horas = int(tempo_execucao // 3600)
@@ -446,7 +447,6 @@ def estatistica():
     
     lucro_total=0
     resultado=0
-    lista_negra.clear()
     if conta_selecionada == 'REAL':
         executando = False
         responder_fake()
@@ -491,11 +491,19 @@ def selecionar_conta(call):
     bot.answer_callback_query(call.id)
 
     conta_selecionada = 'PRACTICE' if call.data == '1' else 'REAL'
-    API.change_balance(conta_selecionada)
+    if not change_balance(conta_selecionada):
+        bot.send_message(call.message.chat.id, "❌ Não foi possível alterar a conta. Tente novamente.")
+    else:
+        saldo = float(API.get_balance())
+        bot.send_message(call.message.chat.id, f"💰 Saldo atualizado: R$ {saldo}")
+
     bot.send_message(
         call.message.chat.id, 
         f"------------------------\n✅  Conta {'Demo' if call.data == '1' else 'Real'} Selecionada!"
     )
+    
+    if not API.check_connect():
+        API.reconnect() 
 
     saldo = float(API.get_balance())
     bot.send_message(call.message.chat.id, f"💰  Saldo: R$ {saldo}")
@@ -511,7 +519,6 @@ def start_command(message):
 def finalizar_execucao(message):
     global executando
     executando = False
-    # responder_fake()
     os._exit(0)
 
 def criar_markup():
