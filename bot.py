@@ -10,6 +10,7 @@ import pandas as pd
 import pandas_ta as ta
 import time
 import os
+import threading
 
 config = ConfigObj('token.txt')
 CHAVE_API = config['token']
@@ -18,11 +19,9 @@ bot = TeleBot(CHAVE_API)
 executando=False
 par=None
 tipo=None
-MAX_LOSS = []
-sequencias_loss = []
-sequencias_win = []
 lista_negra = [] 
-processados = set()
+maior_perda = []
+lock = threading.Lock()
 lucro_total=0
 lucro_acumulado=0
 resultado=0
@@ -30,16 +29,16 @@ vitorias=0
 derrotas=0
 entrada=0
 win=0
-pay=0
 loss=0
-max_win=0
 max_loss=0
+max_win=0
+pay=0
 dpontos=0
 gpontos=0
-vit=0
 exp = 1
 timeframe = 60
 qnt_velas = 30
+
 
 def tentar_reconectar():
     global API
@@ -135,7 +134,7 @@ def maior_payout():
     return table_data[0] if table_data else None
 
 def main_loop():
-    global executando, lista_negra, par, dpontos, gpontos, pay, tipo, vit
+    global executando, lista_negra, par, dpontos, gpontos, pay, tipo,win
     executando = True
 
     while executando:
@@ -144,7 +143,7 @@ def main_loop():
             if not API.check_connect():
                 tentar_reconectar()
 
-            if vit == 0:
+            if win == 0:
                 resul = maior_payout()
                 par = resul[0] 
                 pay = resul[1] 
@@ -153,112 +152,110 @@ def main_loop():
 
             df = obter_velas(API, par, qnt_velas, timeframe)  
             rsi = calcular_rsi(df)
-            print(f"RSI: {rsi}")
-            if rsi <80 or rsi >20:
-                fractal_up, fractal_down =calcular_fractal(df)
-                ema =calcular_ema(API, df, timeframe)            
-                preco = df['close'].iloc[-1] 
-                                
-                if rsi < 80 and preco>ema and not fractal_up:
-                    gsinal="put"
-                    dsinal="call"
+            print(f"RSI: {rsi}", end="\r")
+            if 20 < rsi < 80:
+                fractal_up, fractal_down = calcular_fractal(df)
+                ema = calcular_ema(API, df, timeframe)            
+                preco = df['close'].iloc[-1]
+                                 
+                if rsi < 80 and preco > ema and not fractal_up:
+                    gsinal = "put"
+                    dsinal = "call"
 
                     if abs(dpontos - gpontos) > 1: 
-                        if gpontos<dpontos:
+                        if gpontos < dpontos:
                             direcao = "call"
-                            bot.send_message(chat_id,
-                                            '------------------------\n'
-                                            f"🔅 Entrada encontrada !!\n"
-                                            f"{par} | {pay}%\n"
-                                            f"D.{dpontos} x G.{gpontos}\n")                 
-                            
                         else:
-                            direcao = "put" 
-                            bot.send_message(chat_id,
-                                            '------------------------\n'
-                                            f"🔅 Entrada encontrada !!\n"
-                                            f"{par} | {pay}%\n"
-                                            f"D.{dpontos} x G.{gpontos}\n")   
-                             
+                            direcao = "put"
                     else:
                         direcao = "put"
-                        bot.send_message(chat_id,
-                                        '------------------------\n'
-                                        f"🔅 Entrada encontrada !!\n"
-                                        f"{par} | {pay}%\n"
-                                        f"D.{dpontos} x G.{gpontos}\n")   
-                        
-                        
-                elif rsi > 20 and preco<ema and not fractal_down:
-                    gsinal="call"
-                    dsinal="put"  
+
+                elif rsi > 20 and preco < ema and not fractal_down:
+                    gsinal = "call"
+                    dsinal = "put"
+                    
                     if abs(dpontos - gpontos) > 1: 
-                        if gpontos<dpontos:
+                        if gpontos < dpontos:
                             direcao = "put"
-                            bot.send_message(chat_id,
-                                            '------------------------\n'
-                                            f"🔅 Entrada encontrada !!\n"
-                                            f"{par} | {pay}%\n"
-                                            f"D.{dpontos} x G.{gpontos}\n")   
-                                                        
                         else:
                             direcao = "call"
-                            bot.send_message(chat_id,
-                                            '------------------------\n'
-                                            f"🔅 Entrada encontrada !!\n"
-                                            f"{par} | {pay}%\n"
-                                            f"D.{dpontos} x G.{gpontos}\n")   
-                             
                     else:
-                        direcao = "call" 
-                        bot.send_message(chat_id,
-                                        '------------------------\n'
-                                        f"🔅 Entrada encontrada !!\n"
-                                        f"{par} | {pay}%\n"
-                                        f"D.{dpontos} x G.{gpontos}\n")   
-                                          
+                        direcao = "call"
+
                 else:
                     direcao = None
 
+                if direcao:
+                    bot.send_message(chat_id,
+                        '------------------------\n'
+                        f"🔅 Entrada encontrada !!\n"
+                        f"{par} | {pay}%\n"
+                        f"D.{dpontos} x G.{gpontos}\n")
+                    
             else:
                 direcao = None
 
             if direcao:
-                entrar =entradas(par,direcao,tipo,pay)
-                atualizar_pontuacao(dsinal, gsinal)
+                entrar = entradas(par, direcao, tipo, pay)
+
+                atualizar_pontuacao(par, dsinal, gsinal)
+
                 if lucro_total > 0:
-                    painel_final =estatistica()
+                    painel_final = estatistica()
 
         except Exception as e:
             import traceback
             print(f"Erro: {e}")
             traceback.print_exc()
-          
-def atualizar_pontuacao(dsinal, gsinal):
-    global dpontos, gpontos, par
 
-    vela = API.get_candles(par, timeframe, 1, time.time())[0]
-    if vela['open'] > vela['close']:
-        dir = "put"
-    elif vela['open'] < vela['close']:
-        dir = "call"
-    else:
-        dir = None
+def atualizar_pontuacao(par, dsinal, gsinal):
+    global dpontos, gpontos, resultado
 
-    if dir == dsinal:
-        dpontos += 1
-    else:
-        dpontos -= 1
+    try:
+        if resultado != 0:
+            while True:
+                velas = API.get_candles(par, timeframe, 1, time.time())
+                if not velas or len(velas) == 0:
+                    print("Erro: Dados de vela não encontrados.")
+                    time.sleep(1) 
+                    continue
 
-    if dir == gsinal:
-        gpontos += 1
-    else:
-        gpontos -= 1
-        
-    if dpontos < 0:
-        dpontos = 0
-    if gpontos < 0:
-        gpontos = 0
+                vela = velas[0]
+                if 'open' not in vela or 'close' not in vela or 'from' not in vela:
+                    print("Erro: Estrutura de vela inválida.")
+                    time.sleep(1) 
+                    continue
+
+                horario_abertura = datetime.fromtimestamp(vela['from']).strftime("%H:%M:%S")
+
+                break
+
+            if vela['open'] > vela['close']:
+                dir = "put"
+                
+            elif vela['open'] < vela['close']:
+                dir = "call"
+            else:
+                dir = None
+            
+            with lock:
+                if dir == dsinal:
+                    dpontos += 1
+                else:
+                    dpontos -= 1
+
+                if dir == gsinal:
+                    gpontos += 1
+                else:
+                    gpontos -= 1
+
+                if dpontos < 0:
+                    dpontos = 0
+                if gpontos < 0:
+                    gpontos = 0
+
+    except Exception as e:
+        print(f"Erro ao atualizar pontuação: {e}")
 
 def entradas(par,direcao,tipo,pay):
     global executando
@@ -272,18 +269,18 @@ def entradas(par,direcao,tipo,pay):
             return
 
 def calculo_entrada(pay):
-    global lucro_total, resultado
+    global lucro_total, resultado,loss
     pay2 = pay / 100
     saldo = float(API.get_balance())
     sdo = 2
 
-    if loss > 1:
+    if loss >1:
         if resultado < 0:
             entrada = (abs(lucro_total) - sdo) / pay2
         elif resultado > 0:
-            entrada = (abs(lucro_total) + sdo) / pay2
+            entrada = abs(lucro_total) * 2
     else:
-        entrada = abs(lucro_total) * 2
+        entrada=abs(lucro_total) * 2
 
     entrada = round(max(entrada, 2), 2)
 
@@ -295,11 +292,11 @@ def calculo_entrada(pay):
     return entrada
 
 def compra(par, direcao, exp, tipo, entrada):
-    global executando, lucro_total, resultado, vitorias, derrotas,lista_negra
-    global win, loss, max_win, max_loss, sequencias_loss, sequencias_win,vit
+    global executando, lucro_total, resultado, vitorias, derrotas, lista_negra
+    global win, loss, max_loss, max_win
 
     try:
-        horario_entrada = datetime.now().strftime("%H:%M:%S")
+        horario_entrada = datetime.fromtimestamp(API.get_server_timestamp()).strftime("%H:%M:%S")
 
         if tipo == "digital":
             check, id = API.buy(par,entrada,direcao,exp,'digital')
@@ -328,12 +325,9 @@ def compra(par, direcao, exp, tipo, entrada):
                         vitorias += 1
                         win += 1
                         loss = 0 
-                        max_win = max(max_win, win)
-                        if win == 1: 
-                            sequencias_win.append(1)
-                        else:
-                            sequencias_win[-1] += 1
-                        
+                        if win > max_win:
+                            max_win = win
+
                         bot.send_message(chat_id, '✅')
                         bot.send_message(chat_id, 
                             f'✅  >>  WIN  <<\n'
@@ -354,14 +348,10 @@ def compra(par, direcao, exp, tipo, entrada):
                         derrotas += 1
                         loss += 1
                         win = 0  
-                        vit = 0
-                        max_loss = max(max_loss, loss)
+                        if loss > max_loss:
+                            max_loss = loss
+
                         armazenar_prejuizo()
-                        if loss == 1:  
-                            sequencias_loss.append(1)
-                        else:
-                            sequencias_loss[-1] += 1
-                        
                         bot.send_message(chat_id, '❌')
                         bot.send_message(chat_id, 
                             f'❌  >>  LOSS  <<\n'
@@ -378,32 +368,9 @@ def compra(par, direcao, exp, tipo, entrada):
         print(f"Erro Compra: {e}, tipo: {tipo}, par: {par}, entrada: {entrada}, direcao: {direcao}")
         return
 
-def taxa_acerto():
-    global vitorias, derrotas
-    
-    if vitorias + derrotas > 0:
-        assertividade = (vitorias * 100) / (vitorias + derrotas)
-    else:
-        assertividade = 0
-
-    return assertividade
-
-def armazenar_lucro(lucro_total):
-    global lucro_acumulado
-    if lucro_total > 0:
-        lucro_acumulado += lucro_total
-        return True
-    return False
-
-def armazenar_prejuizo():
-    global lucro_total, MAX_LOSS
-    MAX_LOSS.append(lucro_total)
-    menor_prejuizo = round(min(MAX_LOSS),2)    
-    return menor_prejuizo  
-        
 def estatistica():
-    global executando, vitorias, derrotas, resultado, lucro_total
-    global lucro_acumulado, inicio_execucao, executando, conta_selecionada
+    global executando, vitorias, derrotas, resultado, lucro_total,lista_negra
+    global lucro_acumulado, inicio_execucao, conta_selecionada, max_loss, max_win
 
     tempo_execucao = time.time() - inicio_execucao
     horas = int(tempo_execucao // 3600)
@@ -437,10 +404,34 @@ def estatistica():
     
     lucro_total=0
     resultado=0
+    lista_negra.clear()
     if conta_selecionada == 'REAL':
         executando = False
         responder_fake()
 
+def taxa_acerto():
+    global vitorias, derrotas
+    
+    if vitorias + derrotas > 0:
+        assertividade = (vitorias * 100) / (vitorias + derrotas)
+    else:
+        assertividade = 0
+
+    return assertividade
+
+def armazenar_lucro(lucro_total):
+    global lucro_acumulado
+    if lucro_total > 0:
+        lucro_acumulado += lucro_total
+        return True
+    return False
+
+def armazenar_prejuizo():
+    global lucro_total, maior_perda
+    maior_perda.append(lucro_total)
+    menor_prejuizo = round(min(maior_perda),2)    
+    return menor_prejuizo  
+        
 def responder_fake():
     global chat_id
     bot.send_message(chat_id, "Escolha um dos comandos:", reply_markup=criar_markup())
@@ -474,7 +465,7 @@ def solicitar_conta(message):
 
 def selecionar_conta(call):
     global executando, conta_selecionada, lucro_total, lucro_acumulado, resultado
-    global vitorias, derrotas, entrada, win, pay, loss, max_win, max_loss
+    global vitorias, derrotas, entrada, win, pay, loss
     executando = False
     try:
         bot.answer_callback_query(call.id)
@@ -506,8 +497,6 @@ def selecionar_conta(call):
     win=0
     pay=0
     loss=0
-    max_win=0
-    max_loss=0
 
     executando = True
     if executando:
