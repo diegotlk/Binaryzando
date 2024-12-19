@@ -277,7 +277,7 @@ def calculo_entrada(pay):
     if loss >1:
         if resultado < 0:
             #entrada = (abs(lucro_total) - sdo) / pay2
-            entrada = entrada*2,5
+            entrada = entrada*2.5
         elif resultado > 0:
             entrada = abs(lucro_total) * 2
     else:
