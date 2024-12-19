@@ -269,14 +269,15 @@ def entradas(par,direcao,tipo,pay):
             return
 
 def calculo_entrada(pay):
-    global lucro_total, resultado,loss
+    global lucro_total, resultado,loss,entrada
     pay2 = pay / 100
     saldo = float(API.get_balance())
     sdo = 2
 
     if loss >1:
         if resultado < 0:
-            entrada = (abs(lucro_total) - sdo) / pay2
+            #entrada = (abs(lucro_total) - sdo) / pay2
+            entrada = entrada*2,5
         elif resultado > 0:
             entrada = abs(lucro_total) * 2
     else:
