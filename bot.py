@@ -279,9 +279,9 @@ def calculo_entrada(pay):
             #entrada = (abs(lucro_total) - sdo) / pay2
             entrada = entrada*2.5
         elif resultado > 0:
-            entrada = abs(lucro_total) * 2
+            entrada = abs(lucro_total) * 2.5
     else:
-        entrada=abs(lucro_total) * 2
+        entrada=abs(lucro_total) * 2.5
 
     entrada = round(max(entrada, 2), 2)
 
