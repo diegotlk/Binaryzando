@@ -288,7 +288,7 @@ def calculo_entrada(pay):
     if entrada >= 100:
         bot.send_message(chat_id, '❌')
         bot.send_message(chat_id,"❌  Stop Loss Atingido")
-        os._exit(0)
+        responder_fake()
 
     return entrada
 
